@@ -1,284 +1,276 @@
-# 🏦 Banking Chatbot
+# Banking Chatbot
 
-An intelligent banking chatbot built with FastAPI, LangGraph multi-agent system, RAG pipeline, and Streamlit frontend.
+A multi-agent banking assistant built with FastAPI, LangGraph, RAG over structured banking data, and a Streamlit frontend.
 
-## Features
+## Overview
 
-### Core Capabilities
-- **Multi-Agent System**: Specialized agents for different banking domains
-  - Account Agent: Handle account inquiries, balances, transactions
-  - Loan Agent: Loan applications, payments, interest rates
-  - Compliance Agent: KYC, AML, fraud detection, regulations
-  - Notification Agent: Email, SMS, Slack, push notifications
-  - Scheduling Agent: Appointment booking and management
+This project combines:
 
-- **RAG Pipeline**: Retrieval-Augmented Generation for document-based Q&A
-  - Document ingestion (CSV, Excel)
-  - Semantic chunking strategies
-  - Vector search with ChromaDB
-  - Sentence Transformers embeddings
+- Multi-agent routing for banking workflows
+- Structured data understanding across CSV and XML uploads
+- Grounded RAG for document-backed responses
+- Analytical and reasoning workflows for banking datasets
+- A Streamlit UI for chat, uploads, agent visibility, and system stats
 
-- **Data Aggregation**: Natural language queries on uploaded data
-  - SQL-like queries through DuckDB
-  - Aggregation operations (sum, avg, count, etc.)
-  - Group by and filtering capabilities
+The chatbot is designed to answer banking questions more like an analyst than a generic chatbot. It supports:
 
-- **File Management**: Upload and process banking data files
-  - CSV and Excel file support
-  - Automatic data validation
-  - Preview and metadata extraction
+- Informational questions
+- Analytical questions such as totals, counts, top transactions, and grouped results
+- Reasoning questions such as balance-change explanations
+- Operational questions using maintenance and processing datasets
+- Action-oriented flows such as notification and scheduling requests
+
+## Key Capabilities
+
+- Multi-agent orchestration using LangGraph
+- FastAPI backend with documented REST APIs
+- Streamlit frontend
+- CSV, XLSX, XLS, and XML ingestion
+- ChromaDB vector store for retrieval
+- Structured banking query engine for grounded analytics
+- OAuth scaffolding for Google and Slack
+- Health, readiness, and service-status endpoints
 
 ## Tech Stack
 
-### Backend
-- **FastAPI**: Modern Python web framework
-- **LangGraph**: Multi-agent orchestration
-- **ChromaDB**: Vector database for RAG
-- **Sentence Transformers**: Text embeddings
-- **DuckDB**: In-memory analytics database
-- **PostgreSQL**: Primary database
-- **Redis**: Caching and session management
-
-### Frontend
-- **Streamlit**: Interactive web UI
-- **Requests**: API communication
-
-### Infrastructure
-- **Docker & Docker Compose**: Containerization
-- **PostgreSQL**: Persistent storage
-- **Redis**: In-memory caching
+- FastAPI
+- LangGraph
+- ChromaDB
+- DuckDB
+- Pydantic Settings
+- Streamlit
+- Pandas
+- Requests
+- Docker / Docker Compose
 
 ## Project Structure
 
-```
+```text
 Banking Chatbot/
-├── backend/
-│   ├── app/
-│   │   ├── agents/           # Multi-agent system
-│   │   │   ├── orchestrator.py
-│   │   │   ├── account_agent.py
-│   │   │   ├── loan_agent.py
-│   │   │   ├── compliance_agent.py
-│   │   │   ├── notification_agent.py
-│   │   │   └── scheduling_agent.py
-│   │   ├── api/              # REST API endpoints
-│   │   │   ├── chat.py
-│   │   │   ├── files.py
-│   │   │   └── health.py
-│   │   ├── core/             # Core configuration
-│   │   │   ├── config.py
-│   │   │   ├── security.py
-│   │   │   └── logging.py
-│   │   ├── db/               # Database setup
-│   │   │   ├── session.py
-│   │   │   └── base.py
-│   │   ├── models/           # Data models
-│   │   │   ├── user.py
-│   │   │   ├── token.py
-│   │   │   ├── file.py
-│   │   │   └── logs.py
-│   │   ├── rag/              # RAG pipeline
-│   │   │   ├── chunking.py
-│   │   │   ├── embedding.py
-│   │   │   ├── retrieval.py
-│   │   │   ├── structured_query.py
-│   │   │   └── ingestion.py
-│   │   ├── services/         # Business logic
-│   │   │   ├── rag_service.py
-│   │   │   ├── aggregation_service.py
-│   │   │   └── agent_service.py
-│   │   ├── utils/            # Utilities
-│   │   │   ├── file_validator.py
-│   │   │   ├── date_utils.py
-│   │   │   └── helpers.py
-│   │   └── main.py           # Application entry point
-│   ├── requirements.txt
-│   └── Dockerfile
+├── app/
+│   ├── agents/
+│   ├── api/
+│   ├── core/
+│   ├── db/
+│   ├── models/
+│   ├── rag/
+│   ├── services/
+│   ├── utils/
+│   └── main.py
 ├── frontend/
-│   ├── app.py                # Streamlit application
-│   ├── requirements.txt
-│   └── Dockerfile
+│   ├── app.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── data/
+├── vectorstore/
 ├── docker-compose.yml
-├── .env                      # Environment configuration
+├── requirements.txt
+├── .env.example
 └── README.md
 ```
 
-## Quick Start
+## Setup
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
-- OpenAI API key (optional, for enhanced LLM capabilities)
 
-### Running with Docker
+- Python 3.11+
+- pip
+- Docker and Docker Compose (optional)
 
-1. Clone the repository:
+### 1. Clone the Project
+
 ```bash
 git clone <repository-url>
-cd Banking\ Chatbot
+cd "Banking Chatbot"
 ```
 
-2. Configure environment variables:
+### 2. Create Environment File
+
+Copy the example file and fill in your own values:
+
 ```bash
 cp .env.example .env
-# Edit .env with your settings
 ```
 
-3. Start all services:
-```bash
-docker-compose up -d
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-4. Access the applications:
-- **Frontend (Streamlit)**: http://localhost:8501
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
+### 3. Install Dependencies
 
-### Local Development
+Backend:
 
-1. Install dependencies:
 ```bash
-# Backend
-cd backend
 pip install -r requirements.txt
+```
 
-# Frontend
+Frontend:
+
+```bash
 cd frontend
 pip install -r requirements.txt
+cd ..
 ```
 
-2. Set up environment variables:
-```bash
-cp .env.example .env
-```
+### 4. Run the Backend
 
-3. Run the backend:
 ```bash
-cd backend
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-4. Run the frontend (in a separate terminal):
+### 5. Run the Frontend
+
+In a second terminal:
+
 ```bash
-cd frontend
-streamlit run app.py
+streamlit run frontend/app.py
 ```
+
+If `streamlit` is not available on PATH:
+
+```bash
+python -m streamlit run frontend/app.py
+```
+
+### 6. Open the App
+
+- Frontend UI: `http://localhost:8501`
+- Backend API: `http://localhost:8000`
+- Swagger Docs: `http://localhost:8000/docs`
+
+## Docker Setup
+
+Run the full stack with Docker Compose:
+
+```bash
+docker-compose up --build
+```
+
+Services:
+
+- Frontend: `http://localhost:8501`
+- Backend: `http://localhost:8000`
+- Swagger Docs: `http://localhost:8000/docs`
+
+## Environment Variables
+
+Use `.env.example` as the template. The application supports these major groups:
+
+- Application settings
+- Server settings
+- Database and vector store settings
+- LLM settings
+- RAG settings
+- Upload settings
+- Security settings
+- Redis settings
+- Email settings
+- OAuth settings
+- MCP settings
+- Agent settings
+
+Important variables:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `GROQ_API_KEY`
+- `GROQ_MODEL`
+- `DATABASE_URL`
+- `VECTOR_DB_PATH`
+- `UPLOAD_DIR`
+- `SECRET_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `SLACK_CLIENT_ID`
+- `SLACK_CLIENT_SECRET`
+- `SLACK_BOT_TOKEN`
 
 ## API Endpoints
 
+### Health
+
+- `GET /health`
+- `GET /health/`
+- `GET /health/ready`
+- `GET /health/live`
+- `GET /health/services`
+
 ### Chat
-- `POST /api/chat/message` - Send a message to the chatbot
-- `GET /api/chat/conversations` - List conversations
-- `GET /api/chat/conversation/{id}` - Get conversation history
-- `DELETE /api/chat/conversation/{id}` - Delete a conversation
-- `GET /api/chat/agents` - List available agents
+
+- `POST /api/chat/message`
+- `POST /api/chat/new`
+- `GET /api/chat/conversation/{conversation_id}`
+- `DELETE /api/chat/conversation/{conversation_id}`
+- `GET /api/chat/conversations`
+- `POST /api/chat/clear`
+- `GET /api/chat/agents`
 
 ### Files
-- `POST /api/files/upload` - Upload a file
-- `GET /api/files` - List uploaded files
-- `GET /api/files/{id}` - Get file details
-- `DELETE /api/files/{id}` - Delete a file
-- `GET /api/files/{id}/preview` - Preview file contents
 
-### Health
-- `GET /health` - Basic health check
-- `GET /health/ready` - Readiness check
-- `GET /health/live` - Liveness check
-- `GET /health/services` - Service status
+- `POST /api/files/upload`
+- `GET /api/files`
+- `GET /api/files/{file_id}`
+- `DELETE /api/files/{file_id}`
+- `GET /api/files/{file_id}/preview`
 
-## Configuration
+### OAuth
 
-### Environment Variables
+- `GET /api/oauth/google/login`
+- `GET /api/oauth/google/callback`
+- `GET /api/oauth/slack/login`
+- `GET /api/oauth/slack/callback`
+- `GET /api/oauth/status`
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_NAME` | Application name | Banking Chatbot |
-| `DEBUG` | Debug mode | false |
-| `SECRET_KEY` | JWT secret key | (generate one) |
-| `DATABASE_URL` | PostgreSQL connection | postgresql://... |
-| `OPENAI_API_KEY` | OpenAI API key | (optional) |
-| `LOG_LEVEL` | Logging level | INFO |
+## Supported Data Sources
 
-## Agent Types
+The chatbot is designed to work with structured banking datasets such as:
 
-### Account Agent
-Handles account-related queries:
-- Balance inquiries
-- Transaction history
-- Account information
-- Statement requests
+- Customers
+- Transactions
+- Bank maintenance
+- Transaction processing
 
-### Loan Agent
-Handles loan-related queries:
-- Loan applications
-- Payment information
-- Interest rates
-- Loan status
-- Mortgage options
+Supported upload formats:
 
-### Compliance Agent
-Handles compliance-related queries:
-- KYC requirements
-- AML procedures
-- Fraud prevention
-- Audit information
-- Regulations
+- CSV
+- XLSX
+- XLS
+- XML
 
-### Notification Agent
-Handles notification operations:
-- Email sending
-- SMS messages
-- Slack notifications
-- Push notifications
-- Scheduled notifications
+## Example Queries
 
-### Scheduling Agent
-Handles appointment scheduling:
-- Book appointments
-- Reschedule appointments
-- Cancel appointments
-- Check availability
+- `What is the current balance for customer C0001?`
+- `Give me the list of top 10 transactions`
+- `Total debit last month`
+- `Why did the balance change after transaction TRX010?`
+- `What is the current maintenance status?`
+- `List transactions for account ACC001`
 
-## RAG Pipeline
+## Frontend Notes
 
-The RAG (Retrieval-Augmented Generation) pipeline enables the chatbot to answer questions based on uploaded documents:
+The Streamlit UI supports:
 
-1. **Ingestion**: Documents are uploaded and validated
-2. **Chunking**: Content is split into semantic chunks
-3. **Embedding**: Chunks are converted to vector embeddings
-4. **Storage**: Embeddings are stored in ChromaDB
-5. **Retrieval**: Relevant chunks are retrieved for queries
-6. **Generation**: Responses are generated using retrieved context
+- Chat conversations
+- File uploads
+- Agent overview
+- Health and service stats
 
-## Data Aggregation
+Structured chatbot responses are rendered in a readable format in the UI, including:
 
-The aggregation engine supports natural language queries on uploaded data:
+- numeric results
+- summaries
+- explanations
+- tables for list data
+- source references
 
-```
-User: "What is the total amount by category?"
-Bot: "Here's the breakdown by category..."
-```
+## Notes for Reviewers
 
-Supported operations:
-- `SUM`, `AVG`, `COUNT`, `MIN`, `MAX`
-- `GROUP BY` clauses
-- Date range filtering
-- Complex filter conditions
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+- The backend uses grounded structured reasoning for banking analytics where possible.
+- The system falls back to semantic retrieval when a direct structured answer is not available.
+- Swagger documentation is available out of the box at `/docs`.
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Support
-
-For issues and questions:
-- GitHub Issues: [Create an issue]
-- Email: support@bankingchatbot.com
+This project is provided for evaluation and demonstration purposes unless otherwise specified.
