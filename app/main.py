@@ -20,6 +20,7 @@ from app.api.health import router as health_router
 from app.api.chat import router as chat_router
 from app.api.files import router as files_router
 from app.api.oauth import router as oauth_router
+from app.api.mcp import router as mcp_router
 
 logger = get_logger(__name__)
 
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router)
     app.include_router(files_router)
     app.include_router(oauth_router)
+    app.include_router(mcp_router)
 
     # Upload directory
     os.makedirs(os.path.join(settings.upload_dir, "raw"), exist_ok=True)

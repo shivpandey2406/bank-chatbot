@@ -126,7 +126,7 @@ with st.sidebar:
     st.divider()
 
     page = st.radio("Navigation",
-                    ["💬 Chat", "📁 Upload Files", "🤖 Agents", "📊 Statistics"],
+                    ["💬 Chat", "📁 Upload Files", "🤖 Agents", "🔗 Integrations", "📊 Statistics"],
                     label_visibility="collapsed")
     st.divider()
 
@@ -156,12 +156,18 @@ with st.sidebar:
     st.subheader("🔗 Integrations")
     oauth_status = api("/api/oauth/status")
     if oauth_status:
-        if oauth_status.get("google", {}).get("configured"):
+        g = oauth_status.get("google", {})
+        s = oauth_status.get("slack", {})
+        if g.get("connected"):
+            st.success("✅ Google Connected")
+        elif g.get("configured"):
             st.link_button("🔑 Connect Google", f"{API_BASE_URL}/api/oauth/google/login",
                            use_container_width=True)
         else:
             st.caption("Google OAuth not configured")
-        if oauth_status.get("slack", {}).get("configured"):
+        if s.get("connected"):
+            st.success("✅ Slack Connected")
+        elif s.get("configured"):
             st.link_button("💬 Connect Slack", f"{API_BASE_URL}/api/oauth/slack/login",
                            use_container_width=True)
         else:
@@ -297,6 +303,123 @@ elif page == "🤖 Agents":
                 st.success(f"✅ {sname}: {sinfo.get('message', '')}")
             else:
                 st.error(f"❌ {sname}: {sinfo.get('message', sinfo.get('status', ''))}")
+
+elif page == "🔗 Integrations":
+    st.markdown('<h1 class="main-header">🔗 Integrations &amp; MCP Tools</h1>',
+                unsafe_allow_html=True)
+
+    # ── OAuth Connection Status ──────────────────────────────────
+    st.subheader("OAuth Connections")
+    oauth_status = api("/api/oauth/status")
+    if oauth_status:
+        col_g, col_s = st.columns(2)
+        g = oauth_status.get("google", {})
+        s = oauth_status.get("slack", {})
+
+        with col_g:
+            st.markdown("**Google**")
+            if g.get("connected"):
+                st.success("✅ Connected")
+            elif g.get("configured"):
+                st.warning("⚠️ Configured but not connected")
+                st.link_button("🔑 Connect Google Account",
+                               f"{API_BASE_URL}/api/oauth/google/login",
+                               use_container_width=True)
+            else:
+                st.error("❌ Not configured — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env")
+
+        with col_s:
+            st.markdown("**Slack**")
+            if s.get("connected"):
+                st.success("✅ Connected")
+            elif s.get("configured"):
+                st.warning("⚠️ Configured but not connected")
+                st.link_button("💬 Connect Slack Workspace",
+                               f"{API_BASE_URL}/api/oauth/slack/login",
+                               use_container_width=True)
+            else:
+                st.error("❌ Not configured — set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET in .env")
+    else:
+        st.error("Cannot reach backend to check OAuth status.")
+
+    st.divider()
+
+    # ── MCP Tool Testing ─────────────────────────────────────────
+    st.subheader("🧪 Test MCP Tools")
+    tool_tab = st.tabs(["📧 Gmail", "📅 Calendar", "💬 Slack"])
+
+    # Gmail tab
+    with tool_tab[0]:
+        st.markdown("Send a test email via Gmail API")
+        with st.form("gmail_form"):
+            gmail_to = st.text_input("To (email address)", placeholder="recipient@example.com")
+            gmail_subject = st.text_input("Subject", value="Test from Banking Chatbot")
+            gmail_body = st.text_area("Body", value="This is a test email sent from the Banking Chatbot MCP integration.", height=100)
+            gmail_submit = st.form_submit_button("📧 Send Email", use_container_width=True)
+        if gmail_submit:
+            if not gmail_to:
+                st.error("Recipient email is required.")
+            else:
+                with st.spinner("Sending email..."):
+                    result = api("/api/mcp/gmail/send", method="POST",
+                                 data={"to": gmail_to, "subject": gmail_subject, "body": gmail_body})
+                if result and result.get("success"):
+                    st.success(f"✅ Email sent! Message ID: {result.get('id', 'N/A')}")
+                elif result:
+                    st.error(f"❌ Failed: {result.get('error', result.get('detail', 'Unknown error'))}")
+                else:
+                    st.error("❌ No response from backend. Is Google connected?")
+
+    # Calendar tab
+    with tool_tab[1]:
+        st.markdown("Create a test Google Calendar event")
+        with st.form("calendar_form"):
+            cal_summary = st.text_input("Event Title", value="Test Meeting")
+            col_start, col_end = st.columns(2)
+            with col_start:
+                cal_date = st.date_input("Date")
+                cal_start_time = st.time_input("Start Time")
+            with col_end:
+                cal_end_date = st.date_input("End Date")
+                cal_end_time = st.time_input("End Time")
+            cal_desc = st.text_input("Description (optional)", value="")
+            cal_attendees = st.text_input("Attendees (comma-separated emails, optional)", value="")
+            cal_submit = st.form_submit_button("📅 Create Event", use_container_width=True)
+        if cal_submit:
+            start_iso = f"{cal_date}T{cal_start_time}:00"
+            end_iso = f"{cal_end_date}T{cal_end_time}:00"
+            attendees_list = [a.strip() for a in cal_attendees.split(",") if a.strip()] if cal_attendees else None
+            with st.spinner("Creating event..."):
+                result = api("/api/mcp/calendar/create", method="POST",
+                             data={"summary": cal_summary, "start": start_iso, "end": end_iso,
+                                   "description": cal_desc, "attendees": attendees_list})
+            if result and result.get("success"):
+                st.success(f"✅ Event created! Event ID: {result.get('event_id', 'N/A')}")
+            elif result:
+                st.error(f"❌ Failed: {result.get('error', result.get('detail', 'Unknown error'))}")
+            else:
+                st.error("❌ No response from backend. Is Google connected?")
+
+    # Slack tab
+    with tool_tab[2]:
+        st.markdown("Send a test Slack message")
+        with st.form("slack_form"):
+            slack_channel = st.text_input("Channel", value="general", help="Channel name without #")
+            slack_text = st.text_area("Message", value="Test alert from Banking Chatbot 🏦", height=100)
+            slack_submit = st.form_submit_button("💬 Send Slack Message", use_container_width=True)
+        if slack_submit:
+            if not slack_text:
+                st.error("Message text is required.")
+            else:
+                with st.spinner("Sending message..."):
+                    result = api("/api/mcp/slack/send", method="POST",
+                                 data={"channel": slack_channel, "text": slack_text})
+                if result and result.get("success"):
+                    st.success("✅ Slack message sent!")
+                elif result:
+                    st.error(f"❌ Failed: {result.get('error', result.get('detail', 'Unknown error'))}")
+                else:
+                    st.error("❌ No response from backend. Is Slack connected?")
 
 elif page == "📊 Statistics":
     st.markdown('<h1 class="main-header">📊 Statistics</h1>',

@@ -1,9 +1,11 @@
 """
 Notification Agent
 Handles notification-related queries with LLM-powered responses.
+When an actionable intent is detected (send email, post to Slack),
+executes the real MCP tool using stored OAuth tokens.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from enum import Enum
 
 from app.core.logging import get_logger
@@ -35,6 +37,24 @@ class NotificationAgent:
         self.description = "Handles sending notifications via email, SMS, push, and Slack"
 
     def process(self, query: str, context: Optional[Dict[str, Any]] = None) -> str:
+        from app.services.tool_router import detect_tool_intent, execute_tool_sync
+
+        intent = detect_tool_intent(query)
+        if intent and intent["tool"] in ("send_email", "send_slack"):
+            if intent.get("needs_details"):
+                from app.agents.orchestrator import _llm_generate
+                return _llm_generate(SYSTEM_PROMPT, query)
+
+            logger.info("NotificationAgent executing MCP tool", tool=intent["tool"])
+            result = execute_tool_sync(intent)
+
+            if result.get("success"):
+                if intent["tool"] == "send_email":
+                    return f"Email sent successfully. Message ID: {result.get('id', 'N/A')}"
+                return "Slack message sent successfully."
+            else:
+                return f"Action failed: {result.get('error', 'Unknown error')}"
+
         from app.agents.orchestrator import _llm_generate
         return _llm_generate(SYSTEM_PROMPT, query)
 

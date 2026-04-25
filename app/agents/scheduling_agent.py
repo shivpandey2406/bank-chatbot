@@ -1,9 +1,11 @@
 """
 Scheduling Agent
 Handles appointment and meeting scheduling with LLM-powered responses.
+When an actionable calendar intent is detected, executes the real
+MCP tool using stored OAuth tokens.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 
@@ -38,6 +40,18 @@ class SchedulingAgent:
         self.description = "Handles appointment scheduling, rescheduling, and cancellations"
 
     def process(self, query: str, context: Optional[Dict[str, Any]] = None) -> str:
+        from app.services.tool_router import detect_tool_intent, execute_tool_sync
+
+        intent = detect_tool_intent(query)
+        if intent and intent["tool"] == "create_calendar_event":
+            logger.info("SchedulingAgent executing MCP tool", tool=intent["tool"])
+            result = execute_tool_sync(intent)
+
+            if result.get("success"):
+                return f"Calendar event created successfully. Event ID: {result.get('event_id', 'N/A')}"
+            else:
+                return f"Failed to create event: {result.get('error', 'Unknown error')}"
+
         from app.agents.orchestrator import _llm_generate
         return _llm_generate(SYSTEM_PROMPT, query)
 

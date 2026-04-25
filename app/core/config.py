@@ -90,8 +90,10 @@ class Settings(BaseSettings):
     # OAuth Configuration
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
+    google_redirect_uri: str = "http://localhost:8000/api/oauth/google/callback"
     slack_client_id: Optional[str] = None
     slack_client_secret: Optional[str] = None
+    slack_redirect_uri: str = "http://localhost:8000/api/oauth/slack/callback"
 
     # MCP Configuration
     mcp_server_url: Optional[str] = None
