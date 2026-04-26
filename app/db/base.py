@@ -33,3 +33,6 @@ class Base(DeclarativeBase):
             if getattr(self, c.name) is not None
         )
         return f"<{self.__class__.__name__}({attrs})>"
+
+from app.models.user import User
+from app.models.token import Token
