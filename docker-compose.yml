@@ -9,14 +9,37 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=production
-      - DEBUG=false
-      - DATABASE_URL=sqlite+aiosqlite:///./banking_chatbot.db
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-false}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./banking_chatbot.db}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - LOG_LEVEL=INFO
-      - VECTOR_DB_PATH=./vectorstore/chroma
-      - UPLOAD_DIR=./data/uploads
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-auto}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.1-8b-instant}
+      - GROQ_BASE_URL=${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.1}
+      - MAX_TOKENS=${MAX_TOKENS:-2000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - VECTOR_DB_PATH=${VECTOR_DB_PATH:-./vectorstore/chroma}
+      - UPLOAD_DIR=${UPLOAD_DIR:-./data/uploads}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8501}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/oauth/google/callback}
+      - SLACK_CLIENT_ID=${SLACK_CLIENT_ID:-}
+      - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET:-}
+      - SLACK_REDIRECT_URI=${SLACK_REDIRECT_URI:-http://localhost:8000/api/oauth/slack/callback}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      - SLACK_CHANNEL_ID=${SLACK_CHANNEL_ID:-}
+      - REDIS_URL=${REDIS_URL:-redis://localhost:6379/0}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-200}
+      - RETRIEVAL_TOP_K=${RETRIEVAL_TOP_K:-5}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.5}
     volumes:
       - ./data:/app/data
       - ./vectorstore:/app/vectorstore
@@ -38,7 +61,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - API_BASE_URL=http://backend:8000
+      - API_BASE_URL=${BACKEND_URL:-http://backend:8000}
     depends_on:
       - backend
     networks:

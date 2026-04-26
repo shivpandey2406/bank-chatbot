@@ -1,0 +1,21 @@
+date,transaction_id,account_id,amount,category,description,user_id
+2024-01-15,TRX001,ACC001,1500.00,Deposit,Salary payment,USER001
+2024-01-16,TRX002,ACC001,-25.50,Grocery,Supermarket purchase,USER001
+2024-01-20,TRX003,ACC002,3000.00,Deposit,Freelance income,USER002
+2024-01-22,TRX004,ACC001,-120.75,Loan,Mortgage payment,USER001
+2024-01-25,TRX005,ACC002,750.00,Transfer,Family support,USER002
+2024-01-28,TRX006,ACC001,-89.99,Utility,Electricity bill,USER001
+2024-02-01,TRX007,ACC001,2000.00,Deposit,Bonus payment,USER001
+2024-02-05,TRX008,ACC002,-450.00,Loan,Car loan EMI,USER002
+2024-02-10,TRX009,ACC001,500.00,Investment,Mutual fund SIP,USER001
+2024-02-15,TRX010,ACC003,10000.00,Deposit,Business revenue,USER003
+2024-02-20,TRX011,ACC001,-65.00,Grocery,Online grocery order,USER001
+2024-03-01,TRX012,ACC001,1500.00,Deposit,Salary payment,USER001
+2024-03-05,TRX013,ACC002,-200.00,Utility,Internet and phone,USER002
+2024-03-10,TRX014,ACC003,5000.00,Deposit,Client payment,USER003
+2024-03-15,TRX015,ACC001,-350.00,Insurance,Health insurance premium,USER001
+2024-03-20,TRX016,ACC002,1200.00,Deposit,Part-time income,USER002
+2024-03-25,TRX017,ACC001,-42.00,Entertainment,Movie tickets,USER001
+2024-04-01,TRX018,ACC001,1500.00,Deposit,Salary payment,USER001
+2024-04-05,TRX019,ACC003,-800.00,Loan,Business loan EMI,USER003
+2024-04-10,TRX020,ACC002,2500.00,Deposit,Freelance project,USER002

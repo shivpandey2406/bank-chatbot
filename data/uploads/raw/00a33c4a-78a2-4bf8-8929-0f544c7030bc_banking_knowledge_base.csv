@@ -1,0 +1,16 @@
+category,sub_category,topic,description,applicable_products,rule_type,effective_from,last_updated,notes
+BANK_POLICY,Account Management,Minimum Balance Rule,Savings accounts must maintain a minimum monthly average balance to avoid penalties.,Savings Account,Policy,2025-01-01,2026-01-15,Penalty varies by account tier
+BANK_POLICY,Account Closure,Account Closure Process,Customers can close accounts via branch or digital app after clearing dues.,All Accounts,Procedure,2025-03-01,2026-02-10,Closure TAT is 2 working days
+PRODUCT,Loan,Home Loan Description,Home loans offer financing up to 80% of property value with tenure up to 30 years.,Home Loan,Product Info,2025-01-01,2026-01-10,Floating and fixed options available
+PRODUCT,Loan,Personal Loan Description,Unsecured loans for personal use with minimal documentation.,Personal Loan,Product Info,2025-01-01,2026-01-05,Approval based on credit score
+PRODUCT,Card,Credit Card Features,Credit cards provide revolving credit with rewards and cashback options.,Credit Card,Product Info,2025-02-01,2026-01-20,Interest-free period up to 50 days
+INTEREST_RULE,Savings,Savings Interest Calculation,Interest is calculated daily on closing balance and credited quarterly.,Savings Account,Interest Rule,2025-01-01,2026-01-01,Rates vary from 2.5% to 4%
+INTEREST_RULE,Loan,Loan Interest Type,Loans may have fixed or floating interest rates based on benchmark rates.,All Loans,Interest Rule,2025-01-01,2026-01-01,Floating linked to repo rate
+COMPLIANCE,KYC,KYC Requirement,Customers must complete KYC using valid ID and address proof before account activation.,All Products,Regulation,2025-01-01,2026-02-01,Video KYC supported
+COMPLIANCE,AML,AML Monitoring,Transactions are monitored for suspicious patterns to prevent money laundering.,All Accounts,Regulation,2025-01-01,2026-02-05,High-risk flagged automatically
+SLA,Customer Service,Complaint Resolution SLA,Customer complaints must be resolved within 3 working days.,All Services,SLA,2025-01-01,2026-01-25,Escalation after 48 hours
+SLA,Loan Processing,Loan Approval Time,Personal loans are approved within 24–48 hours after document verification.,Personal Loan,SLA,2025-01-01,2026-01-18,Subject to eligibility
+DIGITAL_LIMIT,UPI,UPI Transaction Limit,"UPI transactions are limited to ₹1,00,000 per day.",UPI,Limit,2025-01-01,2026-01-01,Bank-specific variations apply
+DIGITAL_LIMIT,ATM,ATM Withdrawal Limit,"Daily ATM withdrawal capped at ₹50,000.",Debit Card,Limit,2025-01-01,2026-01-01,Higher for premium accounts
+FAQ,General,What is KYC?,KYC (Know Your Customer) is a mandatory process to verify customer identity.,All Products,FAQ,2025-01-01,2026-01-01,Required by regulators
+FAQ,Digital Banking,How to reset mobile banking password?,Users can reset password via app using OTP verification.,Mobile Banking,FAQ,2025-01-01,2026-01-01,Biometric login supported
