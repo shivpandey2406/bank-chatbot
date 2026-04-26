@@ -7,6 +7,7 @@ All heavy imports (langgraph, openai, sentence-transformers) are deferred
 to first use so that `import app.main` is fast and the server starts instantly.
 """
 
+import time
 from typing import Dict, Any, List, Optional
 from enum import Enum
 from typing_extensions import TypedDict
@@ -29,6 +30,7 @@ class AgentType(str, Enum):
     RAG = "rag"
     AGGREGATION = "aggregation"
     BANKING_DATA = "banking_data"
+    GREETING = "greeting"
 
 
 # AgentState is just a plain TypedDict — no heavy imports needed
@@ -41,6 +43,18 @@ class AgentState(TypedDict):
     context: Optional[Dict[str, Any]]
     metadata: Optional[Dict[str, Any]]
     error: Optional[str]
+
+
+# ── Safety constants ─────────────────────────────────────────────────
+
+_SAFE_NO_DATA = (
+    "I'm sorry, but I don't have enough data to answer this query. "
+    "Please upload the relevant files or rephrase your question."
+)
+
+# Minimum requirements for RAG context to be considered "strong"
+_RAG_MIN_DOCS = 1
+_RAG_MIN_SCORE = 0.35
 
 
 # ── LLM helper (lazy OpenAI-compatible client) ──────────────────────
@@ -89,6 +103,7 @@ def _llm_generate(system_prompt: str, user_prompt: str) -> str:
     if client is None:
         return "[LLM unavailable - configure a valid OpenAI or Groq API key in .env]\n\n" + user_prompt
     try:
+        t0 = time.perf_counter()
         resp = client.chat.completions.create(
             model=settings.llm_model,
             temperature=settings.llm_temperature,
@@ -98,10 +113,44 @@ def _llm_generate(system_prompt: str, user_prompt: str) -> str:
                 {"role": "user", "content": user_prompt},
             ],
         )
+        elapsed = time.perf_counter() - t0
+        logger.info(f"[TIMING] LLM generation completed in {elapsed:.3f}s (model={settings.llm_model})")
         return resp.choices[0].message.content
     except Exception as e:
         logger.error("LLM generation failed", error=str(e))
         return f"I encountered an error generating a response: {e}"
+
+
+def _llm_format_structured(query: str, structured_json: str) -> str:
+    """Use LLM ONLY to rephrase structured output into a human-readable sentence.
+    The LLM must NOT compute, infer, or modify any values."""
+    t0 = time.perf_counter()
+    system_prompt = (
+        "You are Nova, a banking assistant. Your ONLY job is to convert the "
+        "structured JSON result below into a clear, human-readable sentence.\n\n"
+        "STRICT RULES:\n"
+        "- Use ONLY the values present in the JSON. Do NOT calculate, infer, or guess.\n"
+        "- Do NOT add information that is not in the JSON.\n"
+        "- If the JSON indicates failure or missing data, say the data is not available.\n"
+        "- Keep it concise and professional.\n"
+        "- Do NOT mention JSON, structured data, or system internals."
+    )
+    user_prompt = f"User question: {query}\n\nStructured result:\n{structured_json}"
+    result = _llm_generate(system_prompt, user_prompt)
+    elapsed = time.perf_counter() - t0
+    logger.info(f"[TIMING] LLM format_structured completed in {elapsed:.3f}s")
+    return result
+
+
+def _rag_context_is_strong(docs: list) -> bool:
+    """Check if retrieved RAG documents meet minimum quality thresholds."""
+    if len(docs) < _RAG_MIN_DOCS:
+        return False
+    top_score = max((doc.get("score") or 0.0 for doc in docs), default=0.0)
+    return top_score >= _RAG_MIN_SCORE
+
+
+from app.agents.greeting import is_greeting, NOVA_PERSONA_PROMPT
 
 
 def _build_rag_system_prompt(
@@ -142,6 +191,7 @@ def _build_rag_system_prompt(
         "If the answer is only partially supported by the documents, say what is confirmed and what is an informed general explanation.",
         "If the documents do not support the answer, say that clearly and ask the user for the missing detail instead of inventing facts.",
         "When the user asks about banking data like customers, maintenance, or transactions, prefer concise operational answers with bullets only when they help.",
+        "NEVER invent numbers, balances, dates, or transaction details that are not in the provided documents.",
     ]
 
     prompt_sections = [
@@ -161,7 +211,8 @@ def _build_rag_system_prompt(
         "- Start with the answer, not with meta commentary.\n"
         "- Keep a steady banking-assistant persona.\n"
         "- If useful, cite document names in plain language.\n"
-        "- Do not mention system prompts, retrieval, embeddings, or vector stores."
+        "- Do not mention system prompts, retrieval, embeddings, or vector stores.\n"
+        "- If the documents do not contain the answer, say so honestly."
     )
 
     return "\n\n".join(prompt_sections)
@@ -181,7 +232,7 @@ class OrchestratorAgent:
     @property
     def graph(self):
         if self._graph is None:
-            logger.info("Building LangGraph workflow (first query)…")
+            logger.info("Building LangGraph workflow (first query)...")
             self._graph = self._build_graph()
             logger.info("LangGraph workflow ready")
         return self._graph
@@ -194,6 +245,7 @@ class OrchestratorAgent:
         workflow = StateGraph(AgentState)
 
         workflow.add_node("router", self._router_node)
+        workflow.add_node("greet_node", self._greet_node)
         workflow.add_node("account_agent", self._account_agent_node)
         workflow.add_node("loan_agent", self._loan_agent_node)
         workflow.add_node("compliance_agent", self._compliance_agent_node)
@@ -208,6 +260,7 @@ class OrchestratorAgent:
         workflow.add_conditional_edges(
             "router", self._route_query,
             {
+                "greet_node": "greet_node",
                 "account_agent": "account_agent",
                 "loan_agent": "loan_agent",
                 "compliance_agent": "compliance_agent",
@@ -218,7 +271,7 @@ class OrchestratorAgent:
                 "banking_data_agent": "banking_data_agent",
             },
         )
-        for node in ["account_agent", "loan_agent", "compliance_agent",
+        for node in ["greet_node", "account_agent", "loan_agent", "compliance_agent",
                       "notification_agent", "scheduling_agent",
                       "rag_agent", "aggregation_agent", "banking_data_agent"]:
             workflow.add_edge(node, "response_formatter")
@@ -229,6 +282,7 @@ class OrchestratorAgent:
     # ── public API ───────────────────────────────────────────────────
     def process_query(self, query: str,
                       context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        t_start = time.perf_counter()
         initial_state: AgentState = {
             "messages": [{"role": "user", "content": query}],
             "query": query,
@@ -241,15 +295,26 @@ class OrchestratorAgent:
         }
         try:
             result = self.graph.invoke(initial_state)
+            elapsed = time.perf_counter() - t_start
+            agent_type = result.get("agent_type", "unknown")
+            source = result.get("source", "unknown")
+            logger.info(
+                f"[TIMING] Orchestrator process_query completed in {elapsed:.3f}s "
+                f"(agent={agent_type}, source={source})"
+            )
             return {
                 "success": True,
                 "response": result.get("response", ""),
-                "source": result.get("source", "unknown"),
-                "agent_type": result.get("agent_type", "unknown"),
-                "metadata": result.get("metadata", {}),
+                "source": source,
+                "agent_type": agent_type,
+                "metadata": {
+                    **result.get("metadata", {}),
+                    "orchestrator_time_ms": round(elapsed * 1000, 1),
+                },
             }
         except Exception as e:
-            logger.exception("Error processing query", error=str(e))
+            elapsed = time.perf_counter() - t_start
+            logger.exception(f"Error processing query (after {elapsed:.3f}s)", error=str(e))
             return {
                 "success": False, "error": str(e),
                 "response": "I apologize, but I encountered an error.",
@@ -257,14 +322,34 @@ class OrchestratorAgent:
 
     # ── router ───────────────────────────────────────────────────────
     def _router_node(self, state: AgentState) -> dict:
-        routing = _banking_query_service.classify_intent(state["query"])
-        agent_type = routing.get("route") or self._classify_query(state["query"].lower())
-        logger.info("Routing query", agent_type=agent_type, intent=routing.get("intent"))
+        t0 = time.perf_counter()
+        query = state["query"]
+
+        # ── Greeting / small-talk check — runs FIRST, skips all banking logic
+        if is_greeting(query):
+            elapsed = time.perf_counter() - t0
+            logger.info(f"[TIMING] Router intent detection: greeting in {elapsed:.3f}s")
+            return {
+                "agent_type": "greet_node",
+                "metadata": {
+                    **state.get("metadata", {}),
+                    "intent": "greeting",
+                    "router_time_ms": round(elapsed * 1000, 1),
+                },
+            }
+
+        routing = _banking_query_service.classify_intent(query)
+        agent_type = routing.get("route") or self._classify_query(query.lower())
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            f"[TIMING] Router intent detection: {routing.get('intent')} -> {agent_type} in {elapsed:.3f}s"
+        )
         return {
             "agent_type": agent_type,
             "metadata": {
                 **state.get("metadata", {}),
                 "intent": routing.get("intent"),
+                "router_time_ms": round(elapsed * 1000, 1),
             },
         }
 
@@ -310,7 +395,25 @@ class OrchestratorAgent:
     def _route_query(self, state: AgentState) -> str:
         return state.get("agent_type", "banking_data_agent")
 
+
     # ── agent nodes (all sync) ───────────────────────────────────────
+
+    # ── Greeting node — fast path, no RAG/MCP/banking logic ──────────
+    def _greet_node(self, state: AgentState) -> dict:
+        t0 = time.perf_counter()
+        reply = _llm_generate(NOVA_PERSONA_PROMPT, state["query"])
+        elapsed = time.perf_counter() - t0
+        logger.info(f"[TIMING] greet_node completed in {elapsed:.3f}s")
+        return {
+            "response": reply,
+            "source": "greeting",
+            "metadata": {
+                **state.get("metadata", {}),
+                "query_mode": "persona_greeting",
+                "greet_node_time_ms": round(elapsed * 1000, 1),
+            },
+        }
+
     def _account_agent_node(self, state: AgentState) -> dict:
         result = _banking_query_service.answer_query(state["query"], state.get("context"))
         return {
@@ -343,8 +446,16 @@ class OrchestratorAgent:
         return {"response": SchedulingAgent().process(state["query"]),
                 "source": "scheduling_agent"}
 
+    # ── RAG agent with guardrail ─────────────────────────────────────
     def _rag_agent_node(self, state: AgentState) -> dict:
+        t_node = time.perf_counter()
+
+        # 1. Try structured data first (unchanged)
+        t0 = time.perf_counter()
         result = _banking_query_service.answer_query(state["query"], state.get("context"))
+        t_structured = time.perf_counter() - t0
+        logger.info(f"[TIMING] rag_agent structured attempt in {t_structured:.3f}s (success={result.get('success')})")
+
         if result.get("success"):
             return {
                 "response": format_structured_response(result),
@@ -353,19 +464,54 @@ class OrchestratorAgent:
                     **state.get("metadata", {}),
                     "structured_result": result,
                     "query_mode": "grounded_structured",
+                    "structured_query_time_ms": round(t_structured * 1000, 1),
                 },
             }
 
+        # 2. Structured path failed — validate before falling to RAG+LLM
+        if not result.get("success") and result.get("grounded") is False:
+            logger.info("Structured data unavailable, attempting RAG retrieval")
+
         from app.services.rag_service import RAGService
+        t0 = time.perf_counter()
         try:
             docs = RAGService().retrieve(query=state["query"],
                                          k=settings.retrieval_top_k)
         except Exception:
             docs = []
+        t_retrieval = time.perf_counter() - t0
+        top_score = max((d.get("score") or 0.0 for d in docs), default=0.0)
+        logger.info(
+            f"[TIMING] RAG retrieval in {t_retrieval:.3f}s "
+            f"(docs={len(docs)}, top_score={top_score:.4f})"
+        )
+
+        # 3. GUARDRAIL: check RAG context quality before calling LLM
+        if not _rag_context_is_strong(docs):
+            logger.warning(
+                "RAG context too weak, blocking LLM call",
+                doc_count=len(docs),
+                top_score=top_score,
+            )
+            elapsed = time.perf_counter() - t_node
+            logger.info(f"[TIMING] rag_agent_node total (guardrail blocked) in {elapsed:.3f}s")
+            return {
+                "response": _SAFE_NO_DATA,
+                "source": "guardrail",
+                "metadata": {
+                    **state.get("metadata", {}),
+                    "retrieved_documents": len(docs),
+                    "query_mode": "blocked_weak_context",
+                    "guardrail": "rag_quality_check_failed",
+                    "rag_retrieval_time_ms": round(t_retrieval * 1000, 1),
+                },
+            }
+
+        # 4. Strong context — proceed with LLM generation
         retrieved_context = "\n\n".join(
             f"[Document {idx + 1}]\n{doc['text']}"
             for idx, doc in enumerate(docs)
-        ) or "No uploaded document content was retrieved."
+        )
         system_prompt = _build_rag_system_prompt(
             query=state["query"],
             docs=docs,
@@ -375,7 +521,16 @@ class OrchestratorAgent:
             f"Question: {state['query']}\n\n"
             f"Document context:\n{retrieved_context}"
         )
-        return {"response": _llm_generate(system_prompt, user_prompt),
+        t0 = time.perf_counter()
+        llm_response = _llm_generate(system_prompt, user_prompt)
+        t_llm = time.perf_counter() - t0
+
+        elapsed = time.perf_counter() - t_node
+        logger.info(
+            f"[TIMING] rag_agent_node total in {elapsed:.3f}s "
+            f"(structured={t_structured:.3f}s, retrieval={t_retrieval:.3f}s, llm={t_llm:.3f}s)"
+        )
+        return {"response": llm_response,
                 "source": "rag",
                 "metadata": {
                     **state.get("metadata", {}),
@@ -385,10 +540,19 @@ class OrchestratorAgent:
                         for doc in docs
                     ],
                     "query_mode": "semantic_rag",
+                    "rag_retrieval_time_ms": round(t_retrieval * 1000, 1),
+                    "rag_llm_time_ms": round(t_llm * 1000, 1),
                 }}
 
+    # ── Aggregation agent — deterministic only, NO LLM ──────────────
     def _aggregation_agent_node(self, state: AgentState) -> dict:
+        t_node = time.perf_counter()
+        # Always use structured computation, never route to RAG or LLM
+        t0 = time.perf_counter()
         result = _banking_query_service.answer_query(state["query"], state.get("context"))
+        t_structured = time.perf_counter() - t0
+        logger.info(f"[TIMING] aggregation_agent structured query in {t_structured:.3f}s (success={result.get('success')})")
+
         if result.get("success"):
             return {
                 "response": format_structured_response(result),
@@ -397,9 +561,11 @@ class OrchestratorAgent:
                     **state.get("metadata", {}),
                     "structured_result": result,
                     "query_mode": "grounded_structured",
+                    "structured_query_time_ms": round(t_structured * 1000, 1),
                 },
             }
 
+        # Structured path failed — try direct pandas aggregation (no LLM)
         import os, glob, pandas as pd
         from app.services.aggregation_service import AggregationService
         agg = AggregationService()
@@ -409,9 +575,9 @@ class OrchestratorAgent:
         if not files:
             files = glob.glob("data/*.csv") + glob.glob("data/*.xlsx")
         if not files:
-            return {"response": "No data files available. Upload a CSV first.",
+            return {"response": _SAFE_NO_DATA,
                     "source": "aggregation",
-                    "metadata": {"query_type": "aggregation"}}
+                    "metadata": {"query_type": "aggregation", "guardrail": "no_data_files"}}
         dfs = []
         for fp in files:
             try:
@@ -420,27 +586,33 @@ class OrchestratorAgent:
             except Exception:
                 continue
         if not dfs:
-            return {"response": "Could not read data files.",
+            return {"response": _SAFE_NO_DATA,
                     "source": "aggregation",
-                    "metadata": {"query_type": "aggregation"}}
+                    "metadata": {"query_type": "aggregation", "guardrail": "unreadable_files"}}
         combined = pd.concat(dfs, ignore_index=True)
         try:
             r = agg.query(combined, state["query"])
             txt = r.get("result_df", str(r.get("result", "")))
         except Exception as e:
             txt = f"Aggregation error: {e}"
-        prompt = ("You are a banking data analyst. Summarize this result.\n\n"
-                  f"Result:\n{txt}")
-        return {"response": _llm_generate(prompt, state["query"]),
+
+        # Return deterministic result directly — no LLM summarization
+        elapsed = time.perf_counter() - t_node
+        logger.info(f"[TIMING] aggregation_agent_node total in {elapsed:.3f}s (pandas fallback)")
+        return {"response": txt,
                 "source": "aggregation",
                 "metadata": {
                     **state.get("metadata", {}),
                     "query_type": "aggregation",
                     "raw_result": txt,
+                    "query_mode": "deterministic_aggregation",
                 }}
 
     def _banking_data_agent_node(self, state: AgentState) -> dict:
+        t0 = time.perf_counter()
         result = _banking_query_service.answer_query(state["query"], state.get("context"))
+        elapsed = time.perf_counter() - t0
+        logger.info(f"[TIMING] banking_data_agent structured query in {elapsed:.3f}s (success={result.get('success')})")
         return {
             "response": format_structured_response(result),
             "source": "banking_data",
@@ -448,15 +620,55 @@ class OrchestratorAgent:
                 **state.get("metadata", {}),
                 "structured_result": result,
                 "query_mode": "grounded_structured",
+                "structured_query_time_ms": round(elapsed * 1000, 1),
             },
         }
 
+    # ── Response formatter with LLM humanization + final safety ──────
     def _response_formatter_node(self, state: AgentState) -> dict:
-        return {"metadata": {
+        t0 = time.perf_counter()
+        metadata = {
             **state.get("metadata", {}),
             "source": state.get("source", "unknown"),
             "agent_type": state.get("agent_type", "unknown"),
-        }}
+        }
+        response = state.get("response", "")
+        source = state.get("source", "unknown")
+        query = state.get("query", "")
+
+        # ── Final safety layer ───────────────────────────────────────
+        # If no source, no response, or structured result had no rows → safe msg
+        structured_result = metadata.get("structured_result")
+        if structured_result and not structured_result.get("success"):
+            response = _SAFE_NO_DATA
+            metadata["guardrail"] = "structured_failure_override"
+        elif not response or not response.strip():
+            response = _SAFE_NO_DATA
+            metadata["guardrail"] = "empty_response_override"
+
+        # ── LLM formatting for structured responses ──────────────────
+        # Only format grounded structured results into human-readable text.
+        # LLM is NOT allowed to compute or infer — only rephrase.
+        if (
+            source in ("banking_data", "aggregation")
+            and structured_result
+            and structured_result.get("success")
+        ):
+            try:
+                humanized = _llm_format_structured(query, response)
+                if humanized and humanized.strip():
+                    # Keep raw structured data in metadata for auditability
+                    metadata["raw_structured_response"] = response
+                    response = humanized
+                    metadata["llm_formatted"] = True
+            except Exception as e:
+                logger.warning("LLM formatting failed, returning raw structured response",
+                               error=str(e))
+                metadata["llm_formatted"] = False
+
+        elapsed = time.perf_counter() - t0
+        logger.info(f"[TIMING] response_formatter completed in {elapsed:.3f}s (llm_formatted={metadata.get('llm_formatted', 'n/a')})")
+        return {"response": response, "metadata": metadata}
 
 
 # Global instance — lightweight, graph NOT compiled yet

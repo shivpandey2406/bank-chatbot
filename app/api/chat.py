@@ -6,6 +6,7 @@ Main chat endpoint for the banking chatbot.
 import os
 import uuid
 import glob
+import time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
@@ -109,6 +110,7 @@ async def chat_message(
     Conversation and metadata are handled automatically.
     """
     logger.info(f"Chat message: {request.message[:100]}...")
+    t_api_start = time.perf_counter()
 
     try:
         from app.services.agent_service import AgentService
@@ -132,6 +134,12 @@ async def chat_message(
         _store_msg(conv_id, "assistant",
                    result.get("response", ""),
                    result.get("metadata", {}))
+
+        t_api_elapsed = time.perf_counter() - t_api_start
+        logger.info(
+            f"[TIMING] API /chat/message total response in {t_api_elapsed:.3f}s "
+            f"(source={result.get('source', 'unknown')}, agent={result.get('agent_type', 'unknown')})"
+        )
 
         return ChatResponse(
             success=result.get("success", False),
